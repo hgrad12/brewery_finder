@@ -1,0 +1,130 @@
+/*
+Twilio Phone Number
+		+19377708795
+
+	Twilio Verification Code
+		AmIVpa8__YUyI8brbg_M0KK_-BtLbGG-EpWSbXxg
+
+
+	Regular Expressions
+
+	Phone Number:
+
+		All						-		/^[+]*[(]{0,1}[0-9]{1,4}[)]{0,1}[-\s\./0-9]*$/g
+		9999999999				-		/\d{10}/g
+		(999) 999-9999			-
+
+
+	State:
+
+		CO						-		/\b\w{2}\b/g
+		Denver, CO				-		/([A-Za-z]+(?: [A-Za-z]+)*),? ([A-Za-z]{2})/g
+
+
+	Zip Code:
+
+		All						-		/^\d{5}(?:[-\s]\d{4})?$/g
+		11111					-		/\b\d{5}\b/g
+
+
+	Latitude Longitude
+
+		All						-		^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$
+*/
+
+	// handleRequests()
+
+	if len(os.Args) == 1 {
+		fmt.Println("No message included")
+		os.Exit(1)
+	}
+
+	message := strings.Join(os.Args[1:], " ")
+	fmt.Println(message)
+	var config configurationData
+
+	abspath, _ := filepath.Abs("config.json")
+	jsonFile, err := os.Open(abspath)
+
+	if err != nil {
+		fmt.Println("Config file does not exist")
+		os.Exit(1)
+	}
+
+	defer jsonFile.Close()
+
+	data, _ := ioutil.ReadAll(jsonFile)
+
+	json.Unmarshal(data, &config)
+
+	choice := validate(message)
+	fmt.Println(choice)
+
+	rep := fmt.Sprintf("%v?%v=%v&per_page=3&sort=name:desc", openBreweryDB_repository, choice, strings.ReplaceAll(strings.ToLower(message), " ", "_"))
+	fmt.Println(rep)
+	response, err := http.Get(rep)
+
+	//from := config.From
+	//to := config.To
+	//accountSid = config.AccountSID
+	//authToken := config.AuthToken
+
+	//resp, err := http.Get(openBreweryDB_repository)
+
+
+/*
+	Query all breweries (maximum of 50 breweries)
+*/
+func AllBreweries(w http.ResponseWriter, r *http.Request) {
+	var Breweries []Brewery
+	if r.URL.Path != "/all" {
+		http.Error(w, "404 not found", http.StatusNotFound)
+		return
+	}
+
+	if r.Method != "GET" {
+		http.Error(w, "Method is not supported", http.StatusNotFound)
+		return
+	}
+	
+	response, err := http.Get(fmt.Sprintf("%v?per_page=5", openBreweryDB_repository))
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	defer response.Body.Close()
+
+	err = json.NewDecoder(response.Body).Decode(&Breweries)
+
+	if err != nil {
+		panic(err)
+	}
+	breweryJson, err := json.Marshal(Breweries)
+
+	if err != nil {
+		panic(err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	w.Write(breweryJson)
+
+	// body, err := ioutil.ReadAll(resp.Body)
+
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	// fmt.Fprintf(w, string(body))
+}
+
+
+	// body, err := ioutil.ReadAll(response.Body)
+
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	// fmt.Fprintf(w, string(body))
