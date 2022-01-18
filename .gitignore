@@ -1,2 +1,4 @@
 /main
-*.json
+config.json
+config.env
+sample.txt

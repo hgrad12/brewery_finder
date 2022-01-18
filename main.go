@@ -4,12 +4,27 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+
+	twilio "github.com/twilio/twilio-go"
+	openapi "github.com/twilio/twilio-go/rest/api/v2010"
 )
+
+/*
+	struct that contains config.json values
+*/
+type configurationData struct {
+	From       string `json:"from"`
+	To         string `json:"to"`
+	AccountSID string `json:"account_sid"`
+	AuthToken  string `json:"auth_token"`
+}
 
 /*
 	All messages returned are encapsulated in TwiML for Twilio to read
@@ -62,12 +77,29 @@ type Brewery struct {
 func FindBrewery(w http.ResponseWriter, r *http.Request) {
 	var Breweries []Brewery
 
-	m := r.URL.Path[1:]
+	/*
+		extract params from URL,
+			body: the message sent from the user,
+			number: the phone number belonging to the user
+	*/
+	body, bodyOK := r.URL.Query()["body"]
+	number, numberOK := r.URL.Query()["phone_number"]
 
-	choice := validate(m)
+	if !bodyOK || len(body) == 0 || !numberOK || len(number) == 0 {
+		log.Println("Params were not passed!")
+		return
+	}
 
-	rep := fmt.Sprintf("%v?%v=%v&per_page=3&sort=name:asc", openBreweryDB_repository, choice, strings.ReplaceAll(strings.ToLower(m), " ", "_"))
+	b := body[0]
+	n := number[0]
 
+	choice := Validate(b)
+
+	rep := ConstructQuery(choice, b)
+
+	/*
+		execute http request to Open Brewery Database
+	*/
 	response, err := http.Get(rep)
 
 	if err != nil {
@@ -75,6 +107,9 @@ func FindBrewery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	/*
+		execute a Close() to prevent a resource leak
+	*/
 	defer response.Body.Close()
 
 	err = json.NewDecoder(response.Body).Decode(&Breweries)
@@ -83,27 +118,70 @@ func FindBrewery(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	msg := structureBreweriesToString(Breweries)
+	msg := StructureBreweriesToString(Breweries)
 
-	twiml := TwiML{Say: msg}
+	var config configurationData
+	var jsonFile *os.File
 
-	breweryXml, err := xml.Marshal(twiml)
+	abspath, _ := filepath.Abs("./config.json")
+	jsonFile, err = os.Open(abspath)
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Println("json can not be located!")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/xml")
+	data, _ := ioutil.ReadAll(jsonFile)
+	json.Unmarshal(data, &config)
 
-	w.Write(breweryXml)
+	defer jsonFile.Close()
+
+	ExecuteMessageToTwilio(config, n, msg)
+}
+
+/*
+	constuct the Twilio client, that will execute the request to the
+	Twilio console
+*/
+func ExecuteMessageToTwilio(config configurationData, phoneNumber, msg string) {
+	client := twilio.NewRestClientWithParams(twilio.RestClientParams{
+		Username: config.AccountSID,
+		Password: config.AuthToken,
+	})
+
+	params := &openapi.CreateMessageParams{}
+	params.SetTo(phoneNumber)
+	params.SetFrom(config.From)
+	params.SetBody(msg)
+
+	_, err := client.ApiV2010.CreateMessage(params)
+
+	if err != nil {
+		fmt.Println(err.Error())
+	} else {
+		fmt.Println("SMS sent successfully!")
+	}
+}
+
+/*
+	Return a string contianing a query that will be executed to the Open
+	Brewery Databse
+*/
+func ConstructQuery(choice, body string) string {
+	query := "%v?%v=%v&per_page=3&sort=name:asc"
+
+	msg := strings.ReplaceAll(strings.ToLower(body), " ", "_")
+
+	query = fmt.Sprintf(query, openBreweryDB_repository, choice, msg)
+
+	return query
 }
 
 /*
 	Convert all elements of the array into a string
 	If array is empty, return a "No Result Found" message
 */
-func structureBreweriesToString(breweries []Brewery) string {
+func StructureBreweriesToString(breweries []Brewery) string {
 	if len(breweries) == 0 {
 		return "No Results Found"
 	}
@@ -111,7 +189,21 @@ func structureBreweriesToString(breweries []Brewery) string {
 	str := ""
 
 	for _, x := range breweries {
-		str += fmt.Sprintf("%v\n%v\n%v\n%v, %v %v\n%v\n\n", x.Name, x.BreweryType, x.Street, x.City, x.State, x.PostalCode, x.Phone)
+		phone := ""
+		typeOfBrewery := ""
+
+		if len(x.BreweryType) != 0 {
+			breweryType := string(x.BreweryType)
+			typeOfBrewery = strings.Replace(breweryType, breweryType[:1], strings.ToUpper(breweryType[:1]), 1)
+		}
+
+		if len(x.Phone) != 0 {
+			phone += "(" + x.Phone[:3] + ") "
+			phone += x.Phone[3:6] + "-"
+			phone += x.Phone[6:]
+		}
+
+		str += fmt.Sprintf("%v\n%v\n%v\n%v, %v %v\n%v\n\n", x.Name, typeOfBrewery, x.Street, x.City, x.State, x.PostalCode, phone)
 	}
 
 	return str
@@ -120,7 +212,7 @@ func structureBreweriesToString(breweries []Brewery) string {
 /*
 	Method to determine how to query the brewery list
 */
-func validate(message string) string {
+func Validate(message string) string {
 	/*
 		Determine if message contains a zipcode
 	*/
