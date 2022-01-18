@@ -128,3 +128,62 @@ func AllBreweries(w http.ResponseWriter, r *http.Request) {
 	// }
 
 	// fmt.Fprintf(w, string(body))
+
+    
+const axios = require('axios');
+const qs = require('qs');
+
+exports.handler = async (context, event, callback) => {
+  // Create a new message response object
+  const twiml = new Twilio.twiml.MessagingResponse();
+
+  // Just for this example, we'll use the first digit of the incoming phone
+  // number to identify the call. You'll want to use a more robust mechanism
+  // for your own Functions, such as the full phone number.
+  const postId = event.From[1];
+
+  // Since we're making multiple requests, we'll create an instance of axios
+  // that includes our API's base URL and any custom headers we might want to
+  // send with each request. This will simply our GET and POST request paths.
+  // JSONPlaceholder is a fake REST API that you can use for testing and prototyping
+  const instance = axios.create({
+    baseURL: 'https://jsonplaceholder.typicode.com',
+    headers: { 'X-Custom-Header': 'Twilio' },
+  });
+
+  try {
+    // Get the post based on the derived postId
+    // If the postId was 1, this is effectively making a GET request to:
+    // https://jsonplaceholder.typicode.com/posts/1
+    const { data: post } = await instance.get(`/posts/${postId}`);
+
+    const newCount = (post.messageCount || 0) + 1;
+
+    // Like before, we're merging the new count and message into the
+    // existing post object
+    // In order to send this data in the application/x-www-form-urlencoded
+    // format, the payload must be encoded via a utility such as qs
+    const data = qs.stringify({
+      ...post,
+      messageCount: newCount,
+      latestMessage: event.Body,
+    });
+
+    // Use a POST request to "save" the update to the API
+    const update = await instance.post('/posts/', data);
+
+    console.log(update.data);
+
+    // Add a message to the response to let the user know that everything worked
+    twiml.message(
+      `Message received! This was message ${newCount} from your phone number. 🎉`
+    );
+    return callback(null, twiml);
+  } catch (error) {
+    // As always with async functions, you need to be sure to handle errors
+    console.error(error);
+    // Add a message to the response to let the user know that something went wrong
+    twiml.message(`We received your message, but something went wrong 😭`);
+    return callback(error);
+  }
+};
