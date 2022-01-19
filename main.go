@@ -137,6 +137,9 @@ func FindBrewery(w http.ResponseWriter, r *http.Request) {
 	defer jsonFile.Close()
 
 	ExecuteMessageToTwilio(config, n, msg)
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(fmt.Sprint(len(Breweries))))
 }
 
 /*

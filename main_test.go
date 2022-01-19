@@ -5,27 +5,67 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 )
 
 func TestFindBrewery(t *testing.T) {
-	// req := httptest.NewRequest(http.MethodGet, "/upper?word=abc", nil)
-	req := httptest.NewRequest(http.MethodGet, "/upper?body=Hello&phone_number=4438916412", nil) //Hello returns no results and 9999999999 is not a listed number
-	w := httptest.NewRecorder()
-	FindBrewery(w, req)
-	res := w.Result()
-	defer res.Body.Close()
-	data, err := ioutil.ReadAll(res.Body)
+	t.Run("Exxecute FindBrewery, so that it returns no result", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/upper?body=Hello&phone_number=4438916412", nil)
+		w := httptest.NewRecorder()
+		FindBrewery(w, req)
+		res := w.Result()
+		defer res.Body.Close()
+		data, err := ioutil.ReadAll(res.Body)
 
-	if err != nil {
-		t.Errorf("expected error to be nil got %v", err)
-	}
-	str := string(data)
-	if str != "No Results Found" {
-		t.Errorf("expected ABC got %v", str)
-	}
+		if err != nil {
+			t.Errorf("expected error to be nil got %v", err)
+		}
 
-	req = httptest.NewRequest(http.MethodGet, "/?body=11111&phone_number=9999999999", nil)
+		intValue, _ := strconv.ParseInt(string(data), 0, 3)
+
+		if intValue != 0 {
+			t.Errorf("expected ABC got %v", intValue)
+		}
+	})
+
+	t.Run("Exxecute FindBrewery, so that it return a result", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/upper?body=our_mutual_friend&phone_number=4438916412", nil)
+		w := httptest.NewRecorder()
+		FindBrewery(w, req)
+		res := w.Result()
+		defer res.Body.Close()
+		data, err := ioutil.ReadAll(res.Body)
+
+		if err != nil {
+			t.Errorf("expected error to be nil got %v", err)
+		}
+
+		intValue, _ := strconv.ParseInt(string(data), 0, 3)
+
+		if intValue != 1 {
+			t.Errorf("expected ABC got %v", intValue)
+		}
+	})
+
+	t.Run("Exxecute FindBrewery, so that it returns multiple results", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/upper?body=80216&phone_number=4438916412", nil)
+		w := httptest.NewRecorder()
+		FindBrewery(w, req)
+		res := w.Result()
+		defer res.Body.Close()
+		data, err := ioutil.ReadAll(res.Body)
+
+		if err != nil {
+			t.Errorf("expected error to be nil got %v", err)
+		}
+
+		intValue, _ := strconv.ParseInt(string(data), 0, 3)
+
+		if intValue <= 2 {
+			t.Errorf("expected ABC got %v", intValue)
+		}
+	})
 }
 
 func TestStructureBreweriesToString(t *testing.T) {
@@ -67,58 +107,68 @@ func TestStructureBreweriesToString(t *testing.T) {
 }
 
 func TestConstructQuery(t *testing.T) {
-	want := "https://api.openbrewerydb.org/breweries?by_postal=99999&per_page=3&sort=name:asc"
-	got := ConstructQuery("by_postal", "99999")
+	t.Run("Constuct a zip code query", func(t *testing.T) {
+		want := "https://api.openbrewerydb.org/breweries?by_postal=99999&per_page=3&sort=name:asc"
+		got := ConstructQuery("by_postal", "99999")
 
-	if want != got {
-		t.Errorf("got %q want %q", got, want)
-	}
+		if want != got {
+			t.Errorf("got %q want %q", got, want)
+		}
+	})
 
-	want = "https://api.openbrewerydb.org/breweries?by_name=our_mutual_friend&per_page=3&sort=name:asc"
-	got = ConstructQuery("by_name", "Our Mutual Friend")
+	t.Run("Construct a name query", func(t *testing.T) {
+		want := "https://api.openbrewerydb.org/breweries?by_name=our_mutual_friend&per_page=3&sort=name:asc"
+		got := ConstructQuery("by_name", "Our Mutual Friend")
 
-	if want != got {
-		t.Errorf("got %q want %q", got, want)
-	}
+		if want != got {
+			t.Errorf("got %q want %q", got, want)
+		}
+	})
 }
 
 func TestValidate(t *testing.T) {
-	want := "by_postal"
-	got := Validate("11111")
+	t.Run("Validate if string is a zip code", func(t *testing.T) {
+		want := "by_postal"
+		got := Validate("11111")
 
-	if want != got {
-		t.Errorf("got %q want %q", got, want)
-	}
+		if want != got {
+			t.Errorf("got %q want %q", got, want)
+		}
 
-	got = Validate("123")
+		got = Validate("123")
 
-	if want == got {
-		t.Errorf("got %q want %q", got, want)
-	}
+		if want == got {
+			t.Errorf("got %q want %q", got, want)
+		}
+	})
 
-	want = "by_name"
-	got = Validate("Something Brewery")
+	t.Run("Validate if string is a name", func(t *testing.T) {
+		want := "by_name"
+		got := Validate("Something Brewery")
 
-	if want != got {
-		t.Errorf("got %q want %q", got, want)
-	}
+		if want != got {
+			t.Errorf("got %q want %q", got, want)
+		}
 
-	got = Validate("12345-1234")
+		got = Validate("12345-1234")
 
-	if want == got {
-		t.Errorf("got %q want %q", got, want)
-	}
+		if want == got {
+			t.Errorf("got %q want %q", got, want)
+		}
+	})
 
-	want = "by_dist"
-	got = Validate("47.1231231, 179.99999999")
+	t.Run("Validate if string is a set of coordinates (lat/long)", func(t *testing.T) {
+		want := "by_dist"
+		got := Validate("47.1231231, 179.99999999")
 
-	if want != got {
-		t.Errorf("got %q want %q", got, want)
-	}
+		if want != got {
+			t.Errorf("got %q want %q", got, want)
+		}
 
-	got = Validate("Latitude, Longitude")
+		got = Validate("Latitude, Longitude")
 
-	if want == got {
-		t.Errorf("got %q want %q", got, want)
-	}
+		if want == got {
+			t.Errorf("got %q want %q", got, want)
+		}
+	})
 }
