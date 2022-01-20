@@ -10,7 +10,7 @@ import (
 )
 
 func TestFindBrewery(t *testing.T) {
-	t.Run("Exxecute FindBrewery, so that it returns no result", func(t *testing.T) {
+	t.Run("Execute FindBrewery, so that it returns no result", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/upper?body=Hello&phone_number=4438916412", nil)
 		w := httptest.NewRecorder()
 		FindBrewery(w, req)
@@ -29,7 +29,7 @@ func TestFindBrewery(t *testing.T) {
 		}
 	})
 
-	t.Run("Exxecute FindBrewery, so that it return a result", func(t *testing.T) {
+	t.Run("Execute FindBrewery, so that it return a result", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/upper?body=our_mutual_friend&phone_number=4438916412", nil)
 		w := httptest.NewRecorder()
 		FindBrewery(w, req)
@@ -48,7 +48,7 @@ func TestFindBrewery(t *testing.T) {
 		}
 	})
 
-	t.Run("Exxecute FindBrewery, so that it returns multiple results", func(t *testing.T) {
+	t.Run("Execute FindBrewery, so that it returns multiple results", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/upper?body=80216&phone_number=4438916412", nil)
 		w := httptest.NewRecorder()
 		FindBrewery(w, req)
