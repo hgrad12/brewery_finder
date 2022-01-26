@@ -10,6 +10,19 @@ import (
 )
 
 func TestFindBrewery(t *testing.T) {
+	t.Run("Execute FindBrewery, with no params", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/upper", nil)
+		w := httptest.NewRecorder()
+		FindBrewery(w, req)
+		res := w.Result()
+		defer res.Body.Close()
+		_, err := ioutil.ReadAll(res.Body)
+
+		if err != nil {
+			t.Errorf("expected error to be nil got %v", err)
+		}
+	})
+
 	t.Run("Execute FindBrewery, so that it returns no result", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/upper?body=Hello&phone_number=4438916412", nil)
 		w := httptest.NewRecorder()
@@ -50,6 +63,25 @@ func TestFindBrewery(t *testing.T) {
 
 	t.Run("Execute FindBrewery, so that it returns multiple results", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/upper?body=80216&phone_number=4438916412", nil)
+		w := httptest.NewRecorder()
+		FindBrewery(w, req)
+		res := w.Result()
+		defer res.Body.Close()
+		data, err := ioutil.ReadAll(res.Body)
+
+		if err != nil {
+			t.Errorf("expected error to be nil got %v", err)
+		}
+
+		intValue, _ := strconv.ParseInt(string(data), 0, 3)
+
+		if intValue <= 2 {
+			t.Errorf("expected ABC got %v", intValue)
+		}
+	})
+
+	t.Run("Execute FindBrewery, send results back to an unavailable number", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/upper?body=80216&phone_number=9999999999", nil)
 		w := httptest.NewRecorder()
 		FindBrewery(w, req)
 		res := w.Result()
