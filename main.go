@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"encoding/xml"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -24,14 +23,6 @@ type configurationData struct {
 	To         string `json:"to"`
 	AccountSID string `json:"account_sid"`
 	AuthToken  string `json:"auth_token"`
-}
-
-/*
-	All messages returned are encapsulated in TwiML for Twilio to read
-*/
-type TwiML struct {
-	XMLName xml.Name `xml:"Response"`
-	Say     string   `xml:",omitempty"`
 }
 
 /*
@@ -131,15 +122,31 @@ func FindBrewery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, _ := ioutil.ReadAll(jsonFile)
-	json.Unmarshal(data, &config)
+	data, err := ioutil.ReadAll(jsonFile)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = json.Unmarshal(data, &config)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	defer jsonFile.Close()
 
 	ExecuteMessageToTwilio(config, n, msg)
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(fmt.Sprint(len(Breweries))))
+
+	_, err = w.Write([]byte(fmt.Sprint(len(Breweries))))
+
+	if err != nil {
+		fmt.Println(err.Error())
+	}
 }
 
 /*
